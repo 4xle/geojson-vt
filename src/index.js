@@ -70,6 +70,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy) {
     const options = this.options;
     const debug = options.debug;
     const useStream = options.useStream;
+    const extent = options.extent;
 
     // console.log(options)
 
@@ -97,7 +98,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy) {
             this.tileCoords.push({ z, x, y });
             // console.log(`lastZ:${lastZ}, tile.z:${tile.z}`)
             if (useStream) {
-                this.rs.push(tile);
+                this.rs.push(transform(this.tiles[id], options.extent));
                 if(lastZ === null){
                     lastZ = tile.z
                 }

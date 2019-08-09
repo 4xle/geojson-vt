@@ -47,5 +47,8 @@
     "geojson-vt.js",
     "geojson-vt-dev.js",
     "src"
-  ]
+  ],
+  "dependencies": {
+    "underscore": "^1.9.1"
+  }
 }

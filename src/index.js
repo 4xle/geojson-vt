@@ -1,9 +1,10 @@
-
-import convert from './convert';     // GeoJSON conversion and preprocessing
-import clip from './clip';           // stripe clipping algorithm
-import wrap from './wrap';           // date line processing
+import convert from './convert'; // GeoJSON conversion and preprocessing
+import clip from './clip'; // stripe clipping algorithm
+import wrap from './wrap'; // date line processing
 import transform from './transform'; // coordinate transformation
-import createTile from './tile';     // final simplified tile generation
+import createTile from './tile'; // final simplified tile generation
+var _ = require("underscore");
+var Readable = require('stream').Readable;
 
 export default function geojsonvt(data, options) {
     return new GeoJSONVT(data, options);
@@ -14,10 +15,14 @@ function GeoJSONVT(data, options) {
 
     const debug = options.debug;
 
+    const useStream = options.useStream;
+    if (useStream) this.rs = new Readable({objectMode:true});
+
     if (debug) console.time('preprocess data');
 
     if (options.maxZoom < 0 || options.maxZoom > 24) throw new Error('maxZoom should be in the 0-24 range');
     if (options.promoteId && options.generateId) throw new Error('promoteId and generateId cannot be used together.');
+
 
     let features = convert(data, options);
 
@@ -37,7 +42,7 @@ function GeoJSONVT(data, options) {
     // start slicing from the top tile down
     if (features.length) this.splitTile(features, 0, 0, 0);
 
-    if (debug) {
+    if (debug && !useStream) {
         if (features.length) console.log('features: %d, points: %d', this.tiles[0].numFeatures, this.tiles[0].numPoints);
         console.timeEnd('generate tiles');
         console.log('tiles generated:', this.total, JSON.stringify(this.stats));
@@ -45,30 +50,41 @@ function GeoJSONVT(data, options) {
 }
 
 GeoJSONVT.prototype.options = {
-    maxZoom: 14,            // max zoom to preserve detail on
-    indexMaxZoom: 5,        // max zoom in the tile index
+    maxZoom: 14, // max zoom to preserve detail on
+    indexMaxZoom: 5, // max zoom in the tile index
     indexMaxPoints: 100000, // max number of points per tile in the tile index
-    tolerance: 3,           // simplification tolerance (higher means simpler)
-    extent: 4096,           // tile extent
-    buffer: 64,             // tile buffer on each side
-    lineMetrics: false,     // whether to calculate line metrics
-    promoteId: null,        // name of a feature property to be promoted to feature.id
-    generateId: false,      // whether to generate feature ids. Cannot be used with promoteId
-    debug: 0                // logging level (0, 1 or 2)
+    tolerance: 3, // simplification tolerance (higher means simpler)
+    extent: 4096, // tile extent
+    buffer: 64, // tile buffer on each side
+    lineMetrics: false, // whether to calculate line metrics
+    promoteId: null, // name of a feature property to be promoted to feature.id
+    generateId: false, // whether to generate feature ids. Cannot be used with promoteId
+    debug: 0, // logging level (0, 1 or 2)
+    useStream: false, // option for emitting tiles to a stream as they are generated. Will not be usable as a normal tileIndex if true, as stream is self-cleaning to keep memory down as much as possible.
+    streamObject: true // if streaming, the default mode to stream with is in object mode, instead of string/buffer mode
 };
 
-GeoJSONVT.prototype.splitTile = function (features, z, x, y, cz, cx, cy) {
+GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy) {
 
     const stack = [features, z, x, y];
     const options = this.options;
     const debug = options.debug;
+    const useStream = options.useStream;
+
+    // console.log(options)
+
+
+    if (debug > 1 && useStream === true) console.log("writing to stream")
 
     // avoid recursion by using a processing queue
+    var lastZ = null;
     while (stack.length) {
         y = stack.pop();
         x = stack.pop();
         z = stack.pop();
         features = stack.pop();
+
+        // console.log(y,x,z)
 
         const z2 = 1 << z;
         const id = toID(z, x, y);
@@ -78,7 +94,38 @@ GeoJSONVT.prototype.splitTile = function (features, z, x, y, cz, cx, cy) {
             if (debug > 1) console.time('creation');
 
             tile = this.tiles[id] = createTile(features, z, x, y, options);
-            this.tileCoords.push({z, x, y});
+            this.tileCoords.push({ z, x, y });
+            // console.log(`lastZ:${lastZ}, tile.z:${tile.z}`)
+            if (useStream) {
+                this.rs.push(tile);
+                if(lastZ === null){
+                    lastZ = tile.z
+                }
+                if(tile.z === lastZ+2 ){
+                    if(debug > 1)console.time("finding keys to omit")
+                    var omitKeys = _.filter(this.tileCoords, (key) => {return key.z === lastZ});
+                    if(debug > 1)console.timeEnd("finding keys to omit")
+                    if(debug > 1)console.log(`will omit ${JSON.stringify(omitKeys)} b/c on zoom level ${tile.z}`)
+                    if(debug > 1)console.time("generating ids to omit")
+                    var omitIds = _.map(omitKeys, (key) => {return toID(key.z,key.x,key.y)});
+                    if(debug > 1)console.timeEnd("generating ids to omit")
+                    if(debug > 1)console.time("omitting keys")
+
+                    this.tileCoords = _.reject(this.tileCoords, (akey) => {
+                        return _.some(omitKeys, (bkey) => {
+                            return akey.z === bkey.z && akey.x === bkey.x && akey.y === bkey.y
+                        });
+                    });
+                    if(debug > 1)console.timeEnd("omitting keys")
+                    if(debug > 1)console.time("omitting tiles")
+                    this.tiles = _.omit(this.tiles, omitIds);
+                    if(debug > 1)console.timeEnd("omitting tiles")
+                    if(debug > 1)console.log(`now have ${_.keys(this.tiles).length} tiles cached`)    
+                    lastZ+=1;
+                }
+                
+            }
+
 
             if (debug) {
                 if (debug > 1) {
@@ -100,7 +147,7 @@ GeoJSONVT.prototype.splitTile = function (features, z, x, y, cz, cx, cy) {
             // stop tiling if we reached max zoom, or if the tile is too simple
             if (z === options.indexMaxZoom || tile.numPoints <= options.indexMaxPoints) continue;
 
-        // if a drilldown to a specific tile
+            // if a drilldown to a specific tile
         } else {
             // stop tiling if we reached base zoom or our target tile zoom
             if (z === options.maxZoom || z === cz) continue;
@@ -128,7 +175,7 @@ GeoJSONVT.prototype.splitTile = function (features, z, x, y, cz, cx, cy) {
         let tr = null;
         let br = null;
 
-        let left  = clip(features, z2, x - k1, x + k3, 0, tile.minX, tile.maxX, options);
+        let left = clip(features, z2, x - k1, x + k3, 0, tile.minX, tile.maxX, options);
         let right = clip(features, z2, x + k2, x + k4, 0, tile.minX, tile.maxX, options);
         features = null;
 
@@ -146,20 +193,21 @@ GeoJSONVT.prototype.splitTile = function (features, z, x, y, cz, cx, cy) {
 
         if (debug > 1) console.timeEnd('clipping');
 
-        stack.push(tl || [], z + 1, x * 2,     y * 2);
-        stack.push(bl || [], z + 1, x * 2,     y * 2 + 1);
+        stack.push(tl || [], z + 1, x * 2, y * 2);
+        stack.push(bl || [], z + 1, x * 2, y * 2 + 1);
         stack.push(tr || [], z + 1, x * 2 + 1, y * 2);
         stack.push(br || [], z + 1, x * 2 + 1, y * 2 + 1);
     }
+    if (useStream) this.rs.push(null);
 };
 
-GeoJSONVT.prototype.getTile = function (z, x, y) {
+GeoJSONVT.prototype.getTile = function(z, x, y) {
     z = +z;
     x = +x;
     y = +y;
 
     const options = this.options;
-    const {extent, debug} = options;
+    const { extent, debug } = options;
 
     if (z < 0 || z > 24) return null;
 

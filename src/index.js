@@ -62,8 +62,8 @@ GeoJSONVT.prototype.options = {
     debug: 0, // logging level (0, 1 or 2)
     useStream: false, // option for emitting tiles to a stream as they are generated. Will not be usable as a normal tileIndex if true, as stream is self-cleaning to keep memory down as much as possible.
     streamObject: true, // if streaming, the default mode to stream with is in object mode, instead of string/buffer mode
-    debugStream: false,  //display streaming debug logs
-    clearStreamIfMoreThanXCached:1000 //clear the stream if more than X tiles are cached.
+    debugStream: false, //display streaming debug logs
+    clearStreamIfMoreThanXCached: 1000 //clear the stream if more than X tiles are cached.
 };
 
 GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist = true) {
@@ -85,19 +85,14 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             objectMode: true,
         });
         this.rs = rs;
+        rs.tileCounter = 0;
         rs.stack = stack;
         rs.lastZ = null;
         rs.tilesSinceLastClear = 0;
         rs.tiles = this.tiles;
         rs.tileCoords = this.tileCoords;
-        var c = 97 - 1;
+        
         rs._read = function() {
-
-            // if (c >= 'z'.charCodeAt(0)) return rs.push(null);
-
-            // setTimeout(function() {
-            // rs.push({ val: String.fromCharCode(++c) });
-            // }, 100);
 
             // while (this.stack.length) {
             y = this.stack.pop();
@@ -105,14 +100,28 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             z = this.stack.pop();
             features = this.stack.pop();
 
-            // console.log(y,x,z)
+            // console.log(z,x,y)
+
+            if(z===undefined && x===undefined && y===undefined){
+                rs.push(null);
+                return
+            }
+
+            if (this.tilesSinceLastClear >= options.clearStreamIfMoreThanXCached) {
+                if (debug > 0 || debugStream) console.log("tiles haven't been cycled recently, forcing cycle")
+                this.tiles = {};
+                this.tiles = [];
+                this.tilesSinceLastClear = 0;
+            }
 
             const z2 = 1 << z;
             const id = toID(z, x, y);
             let tile = this.tiles[id];
 
+            
+
             if (!tile) {
-                // if (debug > 1) console.time('creation');
+                if (debug > 1) console.time('creation');
 
                 tile = this.tiles[id] = createTile(features, z, x, y, options);
                 this.tileCoords.push({ z, x, y });
@@ -121,15 +130,10 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                 // if (useStream) {
                 // if(useStream) {}
                 rs.push(transform(this.tiles[id], options.extent));
+                this.tileCounter++;
+                console.log(`generated ${this.tileCounter} tiles`)
                 if (this.lastZ === null) {
                     this.lastZ = tile.z
-                }
-
-                if(this.tilesSinceLastClear >= options.clearStreamIfMoreThanXCached){
-                    if(debugStream) console.log("tiles haven't been cycled recently, forcing cycle")
-                    this.tiles = {};
-                    this.tiles = [];
-                    this.tilesSinceLastClear = 0;
                 }
 
                 if (tile.z === this.lastZ + 2) { //once an n+2 layer is reached, start deleting the parent tiles above it as they will have been passed already.
@@ -163,7 +167,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                     if (debug > 1) {
                         console.log('tile z%d-%d-%d (features: %d, points: %d, simplified: %d)',
                             z, x, y, tile.numFeatures, tile.numPoints, tile.numSimplified);
-                        // console.timeEnd('creation');
+                        console.timeEnd('creation');
                     }
                     const key = `z${  z}`;
                     this.stats[key] = (this.stats[key] || 0) + 1;
@@ -193,6 +197,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             tile.source = null;
 
             if (features.length === 0) return;
+
 
             if (debug > 1) console.time('clipping');
 

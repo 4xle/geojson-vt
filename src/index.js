@@ -179,12 +179,13 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             tile.source = features;
 
             // if it's the first-pass tiling
+            var termCondition = false;
             if (!cz) {
                 if(debug > 2) console.log("first-pass tiling")
                 // stop tiling if we reached max zoom, or if the tile is too simple
                 if (z === options.indexMaxZoom || tile.numPoints <= options.indexMaxPoints){ 
                     if(debug > 2) console.log("max zoom reached or tile too simple")
-                    return;
+                    termCondition = true;
                 }
 
                 // if a drilldown to a specific tile
@@ -192,14 +193,14 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                 // stop tiling if we reached base zoom or our target tile zoom
                 if (z === options.maxZoom || z === cz) {
                     if(debug>2) console.log("basezoom or target zoom reached")
-                    return;
+                    termCondition = true;
                 }
 
                 // stop tiling if it's not an ancestor of the target tile
                 const m = 1 << (cz - z);
                 if (x !== Math.floor(cx / m) || y !== Math.floor(cy / m)) {
                     if(debug>2) console.log("not ancestor of target tile")
-                    return;
+                    termCondition = true;
                 }
             }
 
@@ -208,45 +209,45 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
 
             if (features.length === 0) {
                 if(debug>2)console.log("tile has no features")
-                return;
+                termCondition = true;
             };
 
-
+            if(!termCondition){
             if (debug > 1) console.time('clipping');
+                // values we'll use for clipping
+                const k1 = 0.5 * options.buffer / options.extent;
+                const k2 = 0.5 - k1;
+                const k3 = 0.5 + k1;
+                const k4 = 1 + k1;
 
-            // values we'll use for clipping
-            const k1 = 0.5 * options.buffer / options.extent;
-            const k2 = 0.5 - k1;
-            const k3 = 0.5 + k1;
-            const k4 = 1 + k1;
+                let tl = null;
+                let bl = null;
+                let tr = null;
+                let br = null;
 
-            let tl = null;
-            let bl = null;
-            let tr = null;
-            let br = null;
+                let left = clip(features, z2, x - k1, x + k3, 0, tile.minX, tile.maxX, options);
+                let right = clip(features, z2, x + k2, x + k4, 0, tile.minX, tile.maxX, options);
+                features = null;
 
-            let left = clip(features, z2, x - k1, x + k3, 0, tile.minX, tile.maxX, options);
-            let right = clip(features, z2, x + k2, x + k4, 0, tile.minX, tile.maxX, options);
-            features = null;
+                if (left) {
+                    tl = clip(left, z2, y - k1, y + k3, 1, tile.minY, tile.maxY, options);
+                    bl = clip(left, z2, y + k2, y + k4, 1, tile.minY, tile.maxY, options);
+                    left = null;
+                }
 
-            if (left) {
-                tl = clip(left, z2, y - k1, y + k3, 1, tile.minY, tile.maxY, options);
-                bl = clip(left, z2, y + k2, y + k4, 1, tile.minY, tile.maxY, options);
-                left = null;
+                if (right) {
+                    tr = clip(right, z2, y - k1, y + k3, 1, tile.minY, tile.maxY, options);
+                    br = clip(right, z2, y + k2, y + k4, 1, tile.minY, tile.maxY, options);
+                    right = null;
+                }
+
+                if (debug > 1) console.timeEnd('clipping');
+
+                this.stack.push(tl || [], z + 1, x * 2, y * 2);
+                this.stack.push(bl || [], z + 1, x * 2, y * 2 + 1);
+                this.stack.push(tr || [], z + 1, x * 2 + 1, y * 2);
+                this.stack.push(br || [], z + 1, x * 2 + 1, y * 2 + 1);
             }
-
-            if (right) {
-                tr = clip(right, z2, y - k1, y + k3, 1, tile.minY, tile.maxY, options);
-                br = clip(right, z2, y + k2, y + k4, 1, tile.minY, tile.maxY, options);
-                right = null;
-            }
-
-            if (debug > 1) console.timeEnd('clipping');
-
-            this.stack.push(tl || [], z + 1, x * 2, y * 2);
-            this.stack.push(bl || [], z + 1, x * 2, y * 2 + 1);
-            this.stack.push(tr || [], z + 1, x * 2 + 1, y * 2);
-            this.stack.push(br || [], z + 1, x * 2 + 1, y * 2 + 1);
             // }
             // if (debugStream && useStream) console.log("stream generation end")
             // if (useStream) rs.push(null);

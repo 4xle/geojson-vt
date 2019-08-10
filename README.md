@@ -53,7 +53,7 @@ Calling `getTile(z,x,y,false, true)` will return an array of tiles, starting wit
 Calling `getTile` with the first `false` parameter also clear the entire index, it's designed to be used for pure on-the-fly generation (`indexMaxZoom:0`).
 
 ####Tile Streaming
-An additional property is exposed on the tileIndex, `rs`. This is designed to be used when you want to pre-generate tiles as described in the options, but don't have enough memory to store them all at once, and you're intending to write them out to somewhere else, like a file or database. The output stream defaults to JSON objects, but can be set to stringified JSON if wanted.
+An additional property is exposed on the tileIndex, `rs`. This is designed to be used when you want to pre-generate tiles as described in the options, but don't have enough memory to store them all at once, and you're intending to write them out to somewhere else, like a file or database. The output stream is in object mode.
 
 ### Options
 
@@ -73,7 +73,6 @@ var tileIndex = geojsonvt(data, {
 	indexMaxZoom: 5,       // max zoom in the initial tile index
 	indexMaxPoints: 100000 // max number of points per tile in the index,
     useStream:true,     // emit tiles to a stream as they are generated. Must be explicitly set, default false.
-    streamObject:true // stream runs in object mode by default if used. Set to false to get string/buffer mode.
     clearStreamIfMoreThanXCached: 1000 //clear the stream if more than X tiles are cached. Turn it down on systems which are very tightly memory constrained.
 });
 ```

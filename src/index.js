@@ -61,7 +61,7 @@ GeoJSONVT.prototype.options = {
     generateId: false, // whether to generate feature ids. Cannot be used with promoteId
     debug: 0, // logging level (0, 1 or 2)
     useStream: false, // option for emitting tiles to a stream as they are generated. Will not be usable as a normal tileIndex if true, as stream is self-cleaning to keep memory down as much as possible.
-    streamObject: true, // if streaming, the default mode to stream with is in object mode, instead of string/buffer mode
+    // streamObject: true, // if streaming, the default mode to stream with is in object mode, instead of string/buffer mode
     debugStream: false, //display streaming debug logs
     clearStreamIfMoreThanXCached: 1000 //clear the stream if more than X tiles are cached.
 };
@@ -85,6 +85,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             objectMode: true,
         });
         this.rs = rs;
+        rs.total = this.total;
         rs.tileCounter = 0;
         rs.stack = stack;
         rs.lastZ = null;
@@ -118,7 +119,6 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             const id = toID(z, x, y);
             let tile = this.tiles[id];
 
-            
 
             if (!tile) {
                 if (debug > 1) console.time('creation');
@@ -129,13 +129,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                 // if (debug > 1 && computeonly) { console.log("tile is computeonly") }
                 // if (useStream) {
                 // if(useStream) {}
-                if(options.streamObject === true){
-                    rs.push(transform(this.tiles[id], options.extent));    
-                }
-                else{
-                    rs.push(transform(JSON.stringify(this.tiles[id], options.extent)));       
-                }
-                
+                rs.push(transform(this.tiles[id], options.extent));
                 this.tileCounter++;
                 // console.log(`generated ${this.tileCounter} tiles`)
                 if (this.lastZ === null) {
@@ -175,8 +169,8 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                             z, x, y, tile.numFeatures, tile.numPoints, tile.numSimplified);
                         console.timeEnd('creation');
                     }
-                    const key = `z${  z}`;
-                    this.stats[key] = (this.stats[key] || 0) + 1;
+                    // const key = `z${  z}`;
+                    // this.stats[key] = (this.stats[key] || 0) + 1;
                     this.total++;
                 }
             }

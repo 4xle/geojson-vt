@@ -86,6 +86,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
         });
         this.rs = rs;
         rs.stats = this.stats;
+        rs.total = this.total;
         rs.tileCounter = 0;
         rs.stack = stack;
         rs.lastZ = null;
@@ -105,7 +106,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
 
             if(z===undefined && x===undefined && y===undefined){
                 rs.push(null);
-                return
+                return;
             }
 
             if (this.tilesSinceLastClear >= options.clearStreamIfMoreThanXCached) {
@@ -119,8 +120,6 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             const id = toID(z, x, y);
             let tile = this.tiles[id];
 
-            
-
             if (!tile) {
                 if (debug > 1) console.time('creation');
 
@@ -132,7 +131,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                 // if(useStream) {}
                 rs.push(transform(this.tiles[id], options.extent));
                 this.tileCounter++;
-                console.log(`generated ${this.tileCounter} tiles`)
+                if(debugStream){console.log(`generated ${this.tileCounter} tiles`)}
                 if (this.lastZ === null) {
                     this.lastZ = tile.z
                 }
@@ -181,23 +180,36 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
 
             // if it's the first-pass tiling
             if (!cz) {
+                if(debug > 2) console.log("first-pass tiling")
                 // stop tiling if we reached max zoom, or if the tile is too simple
-                if (z === options.indexMaxZoom || tile.numPoints <= options.indexMaxPoints) return;
+                if (z === options.indexMaxZoom || tile.numPoints <= options.indexMaxPoints){ 
+                    if(debug > 2) console.log("max zoom reached or tile too simple")
+                    return;
+                }
 
                 // if a drilldown to a specific tile
             } else {
                 // stop tiling if we reached base zoom or our target tile zoom
-                if (z === options.maxZoom || z === cz) return;
+                if (z === options.maxZoom || z === cz) {
+                    if(debug>2) console.log("basezoom or target zoom reached")
+                    return;
+                }
 
                 // stop tiling if it's not an ancestor of the target tile
                 const m = 1 << (cz - z);
-                if (x !== Math.floor(cx / m) || y !== Math.floor(cy / m)) return;
+                if (x !== Math.floor(cx / m) || y !== Math.floor(cy / m)) {
+                    if(debug>2) console.log("not ancestor of target tile")
+                    return;
+                }
             }
 
             // if we slice further down, no need to keep source geometry
             tile.source = null;
 
-            if (features.length === 0) return;
+            if (features.length === 0) {
+                if(debug>2)console.log("tile has no features")
+                return;
+            };
 
 
             if (debug > 1) console.time('clipping');

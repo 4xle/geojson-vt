@@ -85,6 +85,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
             objectMode: true,
         });
         this.rs = rs;
+        rs.stats = this.stats;
         rs.tileCounter = 0;
         rs.stack = stack;
         rs.lastZ = null;

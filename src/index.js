@@ -131,7 +131,7 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                 // if(useStream) {}
                 rs.push(transform(this.tiles[id], options.extent));
                 this.tileCounter++;
-                console.log(`generated ${this.tileCounter} tiles`)
+                // console.log(`generated ${this.tileCounter} tiles`)
                 if (this.lastZ === null) {
                     this.lastZ = tile.z
                 }

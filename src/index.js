@@ -129,7 +129,13 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                 // if (debug > 1 && computeonly) { console.log("tile is computeonly") }
                 // if (useStream) {
                 // if(useStream) {}
-                rs.push(transform(this.tiles[id], options.extent));
+                if(options.streamObject === true){
+                    rs.push(transform(this.tiles[id], options.extent));    
+                }
+                else{
+                    rs.push(transform(JSON.stringify(this.tiles[id], options.extent)));       
+                }
+                
                 this.tileCounter++;
                 // console.log(`generated ${this.tileCounter} tiles`)
                 if (this.lastZ === null) {

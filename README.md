@@ -46,6 +46,15 @@ var features = tileIndex.getTile(z, x, y).features;
 console.log(tileIndex.tileCoords); // [{z: 0, x: 0, y: 0}, ...]
 ```
 
+### Additions
+#### Single Tile Computation
+Calling `getTile(z,x,y,false)` will only return a single tile. 
+Calling `getTile(z,x,y,false, true)` will return an array of tiles, starting with the tile you requested and up to all of it's parents. 
+Calling `getTile` with the first `false` parameter also clear the entire index, it's designed to be used for pure on-the-fly generation (`indexMaxZoom:0`).
+
+####Tile Streaming
+An additional property is exposed on the tileIndex, `rs`. This is designed to be used when you want to pre-generate tiles as described in the options, but don't have enough memory to store them all at once, and you're intending to write them out to somewhere else, like a file or database. The output stream defaults to JSON objects, but can be set to stringified JSON if wanted.
+
 ### Options
 
 You can fine-tune the results with an options object,
@@ -65,6 +74,7 @@ var tileIndex = geojsonvt(data, {
 	indexMaxPoints: 100000 // max number of points per tile in the index,
     useStream:true,     // emit tiles to a stream as they are generated. Must be explicitly set, default false.
     streamObject:true // stream runs in object mode by default if used. Set to false to get string/buffer mode.
+    clearStreamIfMoreThanXCached: 1000 //clear the stream if more than X tiles are cached. Turn it down on systems which are very tightly memory constrained.
 });
 ```
 

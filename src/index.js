@@ -131,33 +131,54 @@ GeoJSONVT.prototype.splitTile = function(features, z, x, y, cz, cx, cy, persist 
                     this.tilesSinceLastClear = 0;
                 }
 
-                // console.log(`generated ${this.tileCounter} tiles`)
-                // if (this.lastZ === null) {
-                //     this.lastZ = tile.z
-                // }
+                if(debugStream) console.log(`generated ${this.tileCounter} tiles`)
+                if (this.lastZ === null) {
+                    this.lastZ = tile.z
+                }
 
-                // if (tile.z === this.lastZ + 2) { //once an n+2 layer is reached, start deleting the parent tiles above it as they will have been passed already.
-                //     if (debugStream) console.log("finding keys to omit")
-                //     var omitKeys = _.filter(this.tileCoords, (key) => { return key.z === this.lastZ });
-                //     // if(debug > 1)console.timeEnd("finding keys to omit")
-                //     if (debugStream) console.log(`will omit ${JSON.stringify(omitKeys)} b/c on zoom level ${tile.z}`)
-                //     if (debugStream) console.log("generating ids to omit")
-                //     var omitIds = _.map(omitKeys, (key) => { return toID(key.z, key.x, key.y) });
-                //     // if(debug > 1)console.timeEnd("generating ids to omit")
-                //     if (debugStream) console.log("omitting keys")
-                //     this.tileCoords = _.reject(this.tileCoords, (akey) => {
-                //         return _.some(omitKeys, (bkey) => {
-                //             return akey.z === bkey.z && akey.x === bkey.x && akey.y === bkey.y
-                //         });
-                //     });
-                //     // if(debug > 1)console.timeEnd("omitting keys")
-                //     if (debugStream) console.log("omitting tiles")
-                //     this.tiles = _.omit(this.tiles, omitIds);
-                //     // if(debug > 1)console.timeEnd("omitting tiles")
-                //     if (debugStream) console.log(`now have ${_.keys(this.tiles).length} tiles cached`)
-                //     this.lastZ += 1; //increment to the next 
-                //     this.tilesSinceLastClear = 0;
-                // }
+                if(tile.z < this.lastZ){//if the previous tile was in the layer below, get the tiles that were generated in the layer above it
+                    this.lastZ = tile.z;
+                    if (debugStream) console.log("finding keys to omit for layers below which have been omitted")
+                    var omitKeys = _.filter(this.tileCoords, (key) => { return key.z >= this.lastZ+1 });
+                    // if(debug > 1)console.timeEnd("finding keys to omit")
+                    if (debugStream) console.log(`will omit ${JSON.stringify(omitKeys)} b/c on zoom level ${tile.z}`)
+                    if (debugStream) console.log("generating ids to omit")
+                    var omitIds = _.map(omitKeys, (key) => { return toID(key.z, key.x, key.y) });
+                    // if(debug > 1)console.timeEnd("generating ids to omit")
+                    if (debugStream) console.log("omitting keys")
+                    this.tileCoords = _.reject(this.tileCoords, (akey) => {
+                        return _.some(omitKeys, (bkey) => {
+                            return akey.z === bkey.z && akey.x === bkey.x && akey.y === bkey.y
+                        });
+                    });
+                    // if(debug > 1)console.timeEnd("omitting keys")
+                    if (debugStream) console.log("omitting tiles")
+                    this.tiles = _.omit(this.tiles, omitIds);
+                    this.tilesSinceLastClear = 0;
+                }
+
+                if (tile.z === this.lastZ + 2) { //once an n+2 layer is reached, start deleting the parent tiles above it as they will have been passed already.
+                    if (debugStream) console.log("finding keys to omit")
+                    var omitKeys = _.filter(this.tileCoords, (key) => { return key.z === this.lastZ });
+                    // if(debug > 1)console.timeEnd("finding keys to omit")
+                    if (debugStream) console.log(`will omit ${JSON.stringify(omitKeys)} b/c on zoom level ${tile.z}`)
+                    if (debugStream) console.log("generating ids to omit")
+                    var omitIds = _.map(omitKeys, (key) => { return toID(key.z, key.x, key.y) });
+                    // if(debug > 1)console.timeEnd("generating ids to omit")
+                    if (debugStream) console.log("omitting keys")
+                    this.tileCoords = _.reject(this.tileCoords, (akey) => {
+                        return _.some(omitKeys, (bkey) => {
+                            return akey.z === bkey.z && akey.x === bkey.x && akey.y === bkey.y
+                        });
+                    });
+                    // if(debug > 1)console.timeEnd("omitting keys")
+                    if (debugStream) console.log("omitting tiles")
+                    this.tiles = _.omit(this.tiles, omitIds);
+                    // if(debug > 1)console.timeEnd("omitting tiles")
+                    if (debugStream) console.log(`now have ${_.keys(this.tiles).length} tiles cached`)
+                    this.lastZ += 1; //increment to the next 
+                    this.tilesSinceLastClear = 0;
+                }
                 this.tilesSinceLastClear++;
                 this.tileCounter++;
 
